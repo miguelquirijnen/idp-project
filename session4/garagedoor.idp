@@ -1,0 +1,77 @@
+vocabulary V {
+    type Time isa nat
+    Start : Time
+    partial Next(Time) : Time
+    
+    type Pos isa int
+    type Remote
+    
+    pushOpen(Time, Remote)
+    pushClose(Time, Remote)
+    
+    minPos: Pos
+    maxPos: Pos
+    pos(Time, Pos)
+    I_pos: Pos
+    C_pos(Time, Pos)
+    Cn_pos(Time, Pos)
+    
+    opening(Time)
+    closing(Time)
+}	
+
+structure S : V {
+    minPos = 1
+    maxPos = 5
+    I_pos = 1
+    Time = {0..15}
+    Pos = { 1..5 }
+    Remote = { R1; R2 }
+}
+
+
+theory timeTheo : V {
+    {
+        Start = MIN[:Time].
+        ! t[Time]: Next(t) = t + 1 <- Time(t + 1).
+    }
+}
+
+theory T : V {
+    // Preconditions
+
+    { // Successor State Axiom
+        // Start situation of predicate
+        pos(Start, I_pos).
+        // Holds if it was caused.
+		! t[Time] p[Pos]: pos(Next(t), p) <- C_pos(t,p).
+        // Holds if was already true and did not get uncaused.
+        ! t[Time] p[Pos]: pos(Next(t), p) <- pos(t, p) & ~Cn_pos(t,p).
+    }
+
+    { // CAUSES
+        // When opening the position increases
+		! t[Time] p[Pos]: C_pos(t, p+1) <- opening(t) & pos(t,p).
+        // When closing the position decreases
+        ! t[Time] p[Pos]: C_pos(t, p-1) <- closing(t) & pos(t,p).
+        // When the position changes it gets uncaused???
+        ! t[Time] p[Pos] q[Pos]: Cn_pos(t, p) <- C_pos(t, q) & p~=q.
+    }
+    
+    { // 
+        // Opens when pushing open and door is not already fully open
+		! t[Time] r[Remote]: opening(t) <- pushOpen(t, r) & ~pos(t, maxPos).
+        // Still opening in the next timeslot if it was already opening and the next position is not the maximum position and close is not pressed
+        ! t[Time] r[Remote]: opening(Next(t)) <- opening(t) & ~pos(Next(t), maxPos) & ~pushClose(Next(t),r).      
+        // Opens when pushing close and door is not already closed or pushOpen is pressed
+		! t[Time] r[Remote]: closing(t) <- pushClose(t, r) & ~pos(t, minPos) & ~(? s[Remote]: pushOpen(t,s)).
+        // 
+        
+    }
+}
+
+
+
+procedure main() {
+    print(onemodel(T,S))
+}

@@ -1,0 +1,21 @@
+include "database.idp"
+include "run_queries.idp"
+ 
+procedure main() {
+    queries = {O2Q1;O2Q2;O2Q3}
+    displayQueryAnswers(queries)
+}
+
+// TODO: complete queries.
+
+query O2Q1: Sigma{
+    {s[domain] c[domain] : true}
+}
+
+query O2Q2: Sigma{
+    {s[domain] : true}
+}
+
+query O2Q3: Sigma{
+    {s[domain] : true}
+}

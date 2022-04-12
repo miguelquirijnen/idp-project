@@ -1,0 +1,31 @@
+vocabulary V {
+        type index isa int
+        queen(index, index) // queen(x, y) is true iff 
+    						//there is a queen on row x, column y.
+        n : index
+        type diag isa int
+        diag1(index, index) : diag // These functions map locations on the board
+        diag2(index, index) : diag // to their diagonals
+}
+
+theory T : V {
+        { diag1(x, y) = x - y + n. }
+        { diag2(x, y) = x + y - 1. }
+    
+    // There is exactly one queen in every row
+    ! x[index] y1[index] y2[index]: queen(x,y1) & y1 ~= y2 => ~queen(x,y2).
+
+    // There is exactly one queen in every column
+	 ! x1[index] x2[index] y[index]: queen(x1,y) & x1 ~= x2 => ~queen(x2,y).
+    
+    // There can not be more than one queen on any diagonal (2 constraints)
+	
+}
+
+
+include "nqueens_solution.aidp"
+include "nqueens_draw.idp"
+include "nqueens_instance_1.idp"
+//include "nqueens_instance_2.idp"
+//include "nqueens_instance_3.idp"
+include "idpd3/run.idp"
