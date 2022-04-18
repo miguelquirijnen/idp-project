@@ -69,18 +69,21 @@ Theory T_student:V_student {
         ElPosition(Start) = 0. 
         ! t[Time] f[Floor]: ElPosition(Next(t)) = f <- C_floor(t, f).
 		! t[Time] f[Floor]: ElPosition(Next(t)) = f <- ElPosition(t) = f & ~Cn_floor(t,f).
-        
+    } 
+    
+    { // Successor State Axiom DOOR STATE
         ElDoorState(Start) = Closed. 
         ! t[Time] d[DoorState]: ElDoorState(Next(t)) = d <- C_door(t, d).
 		! t[Time] d[DoorState]: ElDoorState(Next(t)) = d <- ElDoorState(t) = d & ~Cn_door(t,d).
     }
     
-    {
-        // MOVEMENT
+    { // Movement Elevator
         ! t[Time] f[Floor]: C_floor(t,f+1) <- movingUp(t) & ElPosition(t) = f.
         ! t[Time] f[Floor]: C_floor(t,f-1) <- movingDown(t) & ElPosition(t) = f.
         ! t[Time] f[Floor] g[Floor]: Cn_floor(t,f) <- C_floor(t,g) & f ~= g.
-        
+    }
+    
+    { // Movement Doors    
         ! t[Time]: C_door(t,Open) <- openingDoors(t).
         ! t[Time]: C_door(t,Closed) <- closingDoors(t).
         ! t[Time] d[DoorState] e[DoorState]: Cn_door(t,d) <- C_door(t,e) & d ~= e.
@@ -91,35 +94,49 @@ Theory T_student:V_student {
         
         // UP
         // Start moving up when request for up
-        ! t[Time]: movingUp(t) <- ? f[Floor]: ElPosition(t) < f & UnansweredRequest(t, f) & (~? ).
+        ! t[Time]: movingUp(t) <- ? f[Floor]: ElPosition(t) < f & UnansweredRequest(t, f)
+        	& (~? g[Floor]: ElPosition(t) = g & UnansweredRequest(t, g))
+        	& ~closingDoors(t).
         // When moving up & more requests at floors higher or equal, keep going up
         
         
         // DOWN
-        ! t[Time]: movingDown(t) <- ? g[Floor]:  ElPosition(t) > g & UnansweredRequest(t, g) & ~movingUp(t).
+        ! t[Time]: movingDown(t) <- ? f[Floor]:  ElPosition(t) > f & UnansweredRequest(t, f) 
+        		& ~movingUp(t)
+        		& (~? g[Floor]: ElPosition(t) = g & UnansweredRequest(t, g))
+        		& ~closingDoors(t).
         // When moving down & more requests at floors lower or equal, keep going down
         
-        // No unanswered requests at t, but multiple unanswered requests both below and above at t+1 => nearest request
-        
-        // ... in case of a tie -> prioritize upwards direction
-        
+        // No unanswered requests at t, but multiple unanswered requests both below and above at t+1 => nearest request (upward in case of tie)
+        //! t[Time]: movingUp(Next(t)) <- 
+        //		? f[Floor] g[Floor]: 
+        //			UnansweredRequest(Next(t), f) & f < ElPosition(t)  // Request below 
+        //		  	& UnansweredRequest(Next(t), g) & f > ElPosition(t) // Request above
+        //		& (ElPosition(t) - f >= g - ElPosition(t)). // Request above is closer or tie
+        //! t[Time]: movingDown(Next(t)) <- 
+        //		? f[Floor] g[Floor]: 
+        //			UnansweredRequest(Next(t), f) & f < ElPosition(t)  // Request below 
+        //		  	& UnansweredRequest(Next(t), g) & f > ElPosition(t) // Request above
+        //		& (ElPosition(t) - f < g - ElPosition(t)). // Request below is closer
         
         // Open doors on right level
-        // ! t[Time]: openingDoors(Next(t)) <- ? f[Floor]:  ElPosition(t) = f & UnansweredRequest(t, f).
-        ! t[Time]: openingDoors(Next(t)) <- ? f[Floor]:  ElPosition(t) = f + 1 & UnansweredRequest(t, f) & movingUp(t).
-        ! t[Time]: openingDoors(Next(t)) <- ? f[Floor]:  ElPosition(t) = f - 1 & UnansweredRequest(t, f) & movingDown(t).
+        ! t[Time]: openingDoors(t) <- ? f[Floor]:  ElPosition(t) = f & UnansweredRequest(t, f).    
         ! t[Time]: closingDoors(Next(t)) <- openingDoors(t).
         
         
     }
    
-    {
-        // 2.1.5: Requests.  
-        ! t[Time] f[Floor]: UnansweredRequest(Next(t), f) <- MakeRequest(t,f) & ~UnansweredRequest(t,f).
+    { // REQUESTS
+        // * Make a new UnansweredRequest.
+        ! t[Time] f[Floor]: UnansweredRequest(Next(t), f) 
+        	<- MakeRequest(t,f) & ~UnansweredRequest(t,f).
         
-        ! t[Time] f[Floor]: UnansweredRequest(Next(t), f) <- UnansweredRequest(t,f) & ~ElPosition(t)=f.
+        // * Keep UnansweredRequest if not on same floor.
+        ! t[Time] f[Floor]: UnansweredRequest(Next(t), f) 
+        	<- UnansweredRequest(t,f) & ~ElPosition(t)=f.
         
-         //! t[Time] f[Floor]: UnansweredRequest(Next(t), f) <- UnansweredRequest(t,f) & ElPosition(t)=f & ElDoorState(t) ~= Closed.
+        // * Keep UnansweredRequest if on the same floor but door still open. 
+        // ! t[Time] f[Floor]: UnansweredRequest(Next(t), f) <- UnansweredRequest(t,f) & ElPosition(t)=f & ElDoorState(t) = Open.
     }
 }
 
