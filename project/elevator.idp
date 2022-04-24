@@ -31,17 +31,25 @@ LTCvocabulary V_student {
     C_floor(Time, Floor)
     Cn_floor(Time, Floor)
     
-    C_door(Time, DoorState)
-    Cn_door(Time, DoorState)
+    C_door(Time)
+    Cn_door(Time)
+    
+    C_request(Time, Floor)
+    Cn_request(Time, Floor)
     
     // Causes-predicates
-    movingUp(Time)
-    movingDown(Time)
+    ascending(Time)
+    descending(Time)
     
+    prioritizeUp(Time)
+    prioritizeDown(Time)
     
-    openingDoors(Time)
-    closingDoors(Time)
+    isClosestBelow(Time, Floor)
+    test(Time)
+    test2(Time)
     
+    MinFloor: Floor
+    MaxFloor: Floor
 }
 
 // TIME THEORY
@@ -58,96 +66,133 @@ Theory T_fixed : V_student {
 // STUDENT THEORY
 // Here you should model the dynamic elevator system
 Theory T_student:V_student {
-    // Preconditions
-    ! t[Time]: movingUp(t) => ~movingDown(t).
-    ! t[Time]: movingDown(t) => ~movingUp(t).
-    ! t[Time]: closingDoors(t) => ~openingDoors(t).
-    ! t[Time]: openingDoors(t) => ~closingDoors(t).
-    ~movingUp(0) & ~movingDown(0) & ~openingDoors(0) & ~closingDoors(0).
+    {
+        MaxFloor = MAX[:Floor].
+        MinFloor = MIN[:Floor].
+    }
     
-	{ // Successor State Axiom ELEVATOR POSITION
-        ElPosition(Start) = 0. 
+    
+	{ // Successor state axioms floor level
+        ElPosition(Start) = MIN[:Floor]. 
         ! t[Time] f[Floor]: ElPosition(Next(t)) = f <- C_floor(t, f).
-		! t[Time] f[Floor]: ElPosition(Next(t)) = f <- ElPosition(t) = f & ~Cn_floor(t,f).
+		! t[Time] f[Floor]: ElPosition(Next(t)) = f <- ElPosition(t) = f & ~Cn_floor(t,f). 
     } 
     
-    { // Successor State Axiom DOOR STATE
+    { // Causes floor level
+        ! t[Time] f[Floor]: C_floor(t,f+1) <- 
+        	ascending(t) & ~UnansweredRequest(t, f) & ElPosition(t) = f
+        	& ElDoorState(t) = Closed.
+        ! t[Time] f[Floor]: C_floor(t,f-1) <- 
+        	descending(t) & ~UnansweredRequest(t, f) & ElPosition(t) = f
+        	& ElDoorState(t) = Closed.
+        ! t[Time] f[Floor]: Cn_floor(t,f) <- ? g[Floor]: C_floor(t,g) & f ~= g.
+    }
+    
+    { // Successor state axioms requests
+        ! t[Time] f[Floor]: UnansweredRequest(Next(t), f) <- C_request(t, f).
+        ! t[Time] f[Floor]: UnansweredRequest(Next(t), f) <- 
+        	UnansweredRequest(t, f) & ~Cn_request(t, f).
+    }
+    
+    { // Causes requests
+        // Make a new UnansweredRequest.
+        ! t[Time] f[Floor]: C_request(t, f) <- MakeRequest(t,f).
+        // Keep UnansweredRequest if on same floor but not closed yet.
+        ! t[Time] f[Floor]: Cn_request(Next(t), f) 
+        	<-  ElPosition(t)=f & ElDoorState(Next(t)) = Open.
+    }
+    
+    { // Successor state axiom doors
+        // Doors are closed in the start state
         ElDoorState(Start) = Closed. 
-        ! t[Time] d[DoorState]: ElDoorState(Next(t)) = d <- C_door(t, d).
-		! t[Time] d[DoorState]: ElDoorState(Next(t)) = d <- ElDoorState(t) = d & ~Cn_door(t,d).
+        // Doors open if it gets caused
+        ! t[Time]: ElDoorState(Next(t)) = Open <- C_door(t). 
+        // Doors remain open if not uncaused
+        ! t[Time]: ElDoorState(Next(t)) = Open <- ElDoorState(t) = Open & ~Cn_door(t). 
+        // Doors close when uncaused
+		! t[Time]: ElDoorState(Next(t)) = Closed <- Cn_door(t). 
+        // Doors remain closed if not caused
+        ! t[Time]: ElDoorState(Next(t)) = Closed <- ElDoorState(t) = Closed & ~C_door(t). 
     }
     
-    { // Movement Elevator
-        ! t[Time] f[Floor]: C_floor(t,f+1) <- movingUp(t) & ElPosition(t) = f.
-        ! t[Time] f[Floor]: C_floor(t,f-1) <- movingDown(t) & ElPosition(t) = f.
-        ! t[Time] f[Floor] g[Floor]: Cn_floor(t,f) <- C_floor(t,g) & f ~= g.
+    { // Causes doors 
+        // When closing doors the doors close
+        ! t[Time]: C_door(t) <- UnansweredRequest(t, ElPosition(t)) & ElDoorState(t) = Closed.
+        // When door changes it gets incaused
+        ! t[Time]: Cn_door(t) <- ElDoorState(t) = Open.
     }
     
-    { // Movement Doors    
-        ! t[Time]: C_door(t,Open) <- openingDoors(t).
-        ! t[Time]: C_door(t,Closed) <- closingDoors(t).
-        ! t[Time] d[DoorState] e[DoorState]: Cn_door(t,d) <- C_door(t,e) & d ~= e.
+    // No ascend and descend at the same time
+    ~? t[Time]: ascending(t) & descending(t).
+    
+    {
+        // Start ascending
+        ! t[Time]: ascending(t) <-  ~descending(t)
+        	& (~? f[Floor]: UnansweredRequest(t,f) & f =< ElPosition(t))
+        	& (? g[Floor]: UnansweredRequest(t,g) & ElPosition(t) < g).
+        // Keep ascending when responding to request above
+        ! t[Time]: ascending(Next(t)) <- (ascending(t))
+        	& (? f[Floor]: UnansweredRequest(Next(t),f) & ElPosition(t) < f).
+        // Several new unanswered, above wins or tie
+        ! t[Time]: ascending(Next(t)) <- 
+        	(~? f[Floor]: UnansweredRequest(t,f))
+        	 & prioritizeUp(Next(t)).
+        
+        // Start descending
+        ! t[Time]: descending(t) <- ~ascending(t)
+        	& (~? f[Floor]: UnansweredRequest(t,f) & ElPosition(t) =< f) 
+        	& (? g[Floor]: UnansweredRequest(t,g) & g < ElPosition(t)).
+        // Keep descending when responding to request below
+         ! t[Time]: descending(Next(t)) <- (descending(t))
+        	& (? f[Floor]: UnansweredRequest(Next(t),f) & f < ElPosition(t)).
+        // Several new unanswered, below wins
+        ! t[Time]: descending(Next(t)) <- 
+        	(~? f[Floor]: UnansweredRequest(t,f))
+        	& prioritizeDown(Next(t)).
     }
     
     {
-        // ELEVATOR MOVEMENT
+        // In case of multiple request, determine whether the above one wins or ties
+        ! t[Time]: prioritizeUp(t) <- 
+        	?>1 f[Floor]:  UnansweredRequest(t,f) 
+        	& ~? g[Floor]: UnansweredRequest(t,g) & g < ElPosition(t) 
+        	& isClosestBelow(t, g).
         
-        // UP
-        // Start moving up when request for up
-        ! t[Time]: movingUp(t) <- ? f[Floor]: ElPosition(t) < f & UnansweredRequest(t, f)
-        	& (~? g[Floor]: ElPosition(t) = g & UnansweredRequest(t, g))
-        	& ~closingDoors(t).
-        // When moving up & more requests at floors higher or equal, keep going up
+        // In case of multiple request, determine whether the bottom one wins
+        ! t[Time]: prioritizeDown(t) <- 
+        	?>1 f[Floor]:  UnansweredRequest(t,f) 
+        	& ? g[Floor]: UnansweredRequest(t,g) & g < ElPosition(t)
+        	& isClosestBelow(t, g).
         
-        
-        // DOWN
-        ! t[Time]: movingDown(t) <- ? f[Floor]:  ElPosition(t) > f & UnansweredRequest(t, f) 
-        		& ~movingUp(t)
-        		& (~? g[Floor]: ElPosition(t) = g & UnansweredRequest(t, g))
-        		& ~closingDoors(t).
-        // When moving down & more requests at floors lower or equal, keep going down
-        
-        // No unanswered requests at t, but multiple unanswered requests both below and above at t+1 => nearest request (upward in case of tie)
-        //! t[Time]: movingUp(Next(t)) <- 
-        //		? f[Floor] g[Floor]: 
-        //			UnansweredRequest(Next(t), f) & f < ElPosition(t)  // Request below 
-        //		  	& UnansweredRequest(Next(t), g) & f > ElPosition(t) // Request above
-        //		& (ElPosition(t) - f >= g - ElPosition(t)). // Request above is closer or tie
-        //! t[Time]: movingDown(Next(t)) <- 
-        //		? f[Floor] g[Floor]: 
-        //			UnansweredRequest(Next(t), f) & f < ElPosition(t)  // Request below 
-        //		  	& UnansweredRequest(Next(t), g) & f > ElPosition(t) // Request above
-        //		& (ElPosition(t) - f < g - ElPosition(t)). // Request below is closer
-        
-        // Open doors on right level
-        ! t[Time]: openingDoors(t) <- ? f[Floor]:  ElPosition(t) = f & UnansweredRequest(t, f).    
-        ! t[Time]: closingDoors(Next(t)) <- openingDoors(t).
-        
-        
-    }
-   
-    { // REQUESTS
-        // * Make a new UnansweredRequest.
-        ! t[Time] f[Floor]: UnansweredRequest(Next(t), f) 
-        	<- MakeRequest(t,f) & ~UnansweredRequest(t,f).
-        
-        // * Keep UnansweredRequest if not on same floor.
-        ! t[Time] f[Floor]: UnansweredRequest(Next(t), f) 
-        	<- UnansweredRequest(t,f) & ~ElPosition(t)=f.
-        
-        // * Keep UnansweredRequest if on the same floor but door still open. 
-        // ! t[Time] f[Floor]: UnansweredRequest(Next(t), f) <- UnansweredRequest(t,f) & ElPosition(t)=f & ElDoorState(t) = Open.
-    }
+        // Check whether the given floor below is the closest
+        ! t[Time] f[Floor]: isClosestBelow(t, f) <- ~? g[Floor]: UnansweredRequest(t,g) & f<g
+        		& abs(ElPosition(t)-f) >= abs(ElPosition(t)-g).
+    } 
+}
+
+// INVARIANTS
+
+// If elevator moves the doors are closed!
+theory move_inv : V_student {
+    ! t[Time]: ElPosition(t) ~= ElPosition(Next(t)) 
+    	=> ElDoorState(t) = Closed & ElDoorState(Next(t)) = Closed.
+}
+
+// Doors are never open if there is no call waiting on that floor
+theory door_inv : V_student {
+    ~? t[Time]: ElDoorState(t) = Open & ~UnansweredRequest(t,ElPosition(t)).
 }
 
 
 // MAIN PROCEDURE
 // If you have to change the main procedure for debugging purposes, be careful and restore it back once you finish debugging.
 procedure main() {
+    /*
     local CompleteTheory = merge(T_fixed, T_student) 
     
-    // Change the structure name to try other structures (check the included file "structures.idp" for available provided structures, and feel free to add additional structures)                                
-    model = onemodel(CompleteTheory, S)
+    // Change the structure name to try other structures (check the included file "structures.idp" for available provided structures, and feel free to add additional structures)     
+    
+    model = onemodel(CompleteTheory, S5)
     
     // Printing model 
     print(model)
@@ -155,6 +200,20 @@ procedure main() {
     // Visualization
     initVisualization()
     visualizeElevator(model)
+    */
+    proveInvariants()
+    
+}
+
+procedure proveInvariants(){
+    print(isinvariant(T_student, move_inv , S_Inv)) 
+    print(isinvariant(T_student, door_inv , S_Inv))
+}
+
+Structure S_Inv: V_student {
+    Time = {0..20}
+    Floor = {0..5}
+    Start = 0
 }
 
 // File responsible for visualization  

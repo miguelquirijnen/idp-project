@@ -51,7 +51,7 @@ theory T : V {
 
     { // CAUSES
         // When opening the position increases
-		! t[Time] p[Pos]: C_pos(t, p+1) <- opening(t) & pos(t,p).
+		    ! t[Time] p[Pos]: C_pos(t, p+1) <- opening(t) & pos(t,p).
         // When closing the position decreases
         ! t[Time] p[Pos]: C_pos(t, p-1) <- closing(t) & pos(t,p).
         // When the position changes it gets uncaused???
