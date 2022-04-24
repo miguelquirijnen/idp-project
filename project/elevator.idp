@@ -6,20 +6,20 @@
 // FIXED VOCABULARY
 // DO NOT CHANGE THIS VOCABULARY
 LTCvocabulary V_fixed {
-    type Time isa nat			// A set of time points
-    Start: Time 				// The initial time point
-    partial Next(Time): Time 	// The successor time point of time point t
+    type Time isa nat     // A set of time points
+    Start: Time         // The initial time point
+    partial Next(Time): Time  // The successor time point of time point t
     
-    type Floor isa nat									// The set of floors
-    type DoorState constructed from {Closed, Open}		// A set of possible states of the elevator’s doors
+    type Floor isa nat                  // The set of floors
+    type DoorState constructed from {Closed, Open}    // A set of possible states of the elevator’s doors
 	
     // Fluents
-    ElPosition(Time):Floor				// The floor of the elevator at time point t
-    ElDoorState(Time):DoorState			// The state of the elevator’s doors at time point t
-    UnansweredRequest(Time, Floor)		// Denotes that there is an unanswered request at floor f at time point t
+    ElPosition(Time):Floor        // The floor of the elevator at time point t
+    ElDoorState(Time):DoorState     // The state of the elevator’s doors at time point t
+    UnansweredRequest(Time, Floor)    // Denotes that there is an unanswered request at floor f at time point t
     
     // Actions
-    MakeRequest(Time, Floor) 			// Denotes that a request is made for floor f at time point t
+    MakeRequest(Time, Floor)      // Denotes that a request is made for floor f at time point t
 }
 
 
@@ -27,6 +27,9 @@ LTCvocabulary V_fixed {
 // Here you can add new types, functions and predicates
 LTCvocabulary V_student {
     extern vocabulary V_fixed
+    
+    MinFloor: Floor
+    MaxFloor: Floor
     
     C_floor(Time, Floor)
     Cn_floor(Time, Floor)
@@ -45,11 +48,6 @@ LTCvocabulary V_student {
     prioritizeDown(Time)
     
     isClosestBelow(Time, Floor)
-    test(Time)
-    test2(Time)
-    
-    MinFloor: Floor
-    MaxFloor: Floor
 }
 
 // TIME THEORY
@@ -71,7 +69,6 @@ Theory T_student:V_student {
         MinFloor = MIN[:Floor].
     }
     
-    
 	{ // Successor state axioms floor level
         ElPosition(Start) = MIN[:Floor]. 
         ! t[Time] f[Floor]: ElPosition(Next(t)) = f <- C_floor(t, f).
@@ -79,12 +76,10 @@ Theory T_student:V_student {
     } 
     
     { // Causes floor level
-        ! t[Time] f[Floor]: C_floor(t,f+1) <- 
-        	ascending(t) & ~UnansweredRequest(t, f) & ElPosition(t) = f
-        	& ElDoorState(t) = Closed.
-        ! t[Time] f[Floor]: C_floor(t,f-1) <- 
-        	descending(t) & ~UnansweredRequest(t, f) & ElPosition(t) = f
-        	& ElDoorState(t) = Closed.
+        ! t[Time] f[Floor]: C_floor(t,f+1) <- ascending(t) & ElPosition(t) = f
+        	& ~UnansweredRequest(t, f) & ElDoorState(t) = Closed.
+        ! t[Time] f[Floor]: C_floor(t,f-1) <- descending(t)  & ElPosition(t) = f
+        	& ~UnansweredRequest(t, f) & ElDoorState(t) = Closed.
         ! t[Time] f[Floor]: Cn_floor(t,f) <- ? g[Floor]: C_floor(t,g) & f ~= g.
     }
     
@@ -99,14 +94,14 @@ Theory T_student:V_student {
         ! t[Time] f[Floor]: C_request(t, f) <- MakeRequest(t,f).
         // Keep UnansweredRequest if on same floor but not closed yet.
         ! t[Time] f[Floor]: Cn_request(Next(t), f) 
-        	<-  ElPosition(t)=f & ElDoorState(Next(t)) = Open.
+        	<- ElPosition(t)=f & ElDoorState(Next(t)) = Open.
     }
     
     { // Successor state axiom doors
         // Doors are closed in the start state
         ElDoorState(Start) = Closed. 
         // Doors open if it gets caused
-        ! t[Time]: ElDoorState(Next(t)) = Open <- C_door(t). 
+        ! t[Time]: ElDoorState(Next(t)) = Open <- C_door(t) & UnansweredRequest(Next(t), ElPosition(t)). 
         // Doors remain open if not uncaused
         ! t[Time]: ElDoorState(Next(t)) = Open <- ElDoorState(t) = Open & ~Cn_door(t). 
         // Doors close when uncaused
@@ -117,7 +112,8 @@ Theory T_student:V_student {
     
     { // Causes doors 
         // When closing doors the doors close
-        ! t[Time]: C_door(t) <- UnansweredRequest(t, ElPosition(t)) & ElDoorState(t) = Closed.
+        ! t[Time]: C_door(t) <- UnansweredRequest(t, ElPosition(t)) 
+        	& ElDoorState(t) = Closed.
         // When door changes it gets incaused
         ! t[Time]: Cn_door(t) <- ElDoorState(t) = Open.
     }
@@ -127,16 +123,15 @@ Theory T_student:V_student {
     
     {
         // Start ascending
-        ! t[Time]: ascending(t) <-  ~descending(t)
+        ! t[Time]: ascending(t) <- ~descending(t)
         	& (~? f[Floor]: UnansweredRequest(t,f) & f =< ElPosition(t))
         	& (? g[Floor]: UnansweredRequest(t,g) & ElPosition(t) < g).
         // Keep ascending when responding to request above
         ! t[Time]: ascending(Next(t)) <- (ascending(t))
         	& (? f[Floor]: UnansweredRequest(Next(t),f) & ElPosition(t) < f).
         // Several new unanswered, above wins or tie
-        ! t[Time]: ascending(Next(t)) <- 
-        	(~? f[Floor]: UnansweredRequest(t,f))
-        	 & prioritizeUp(Next(t)).
+        ! t[Time]: ascending(Next(t)) <- (~? f[Floor]: UnansweredRequest(t,f))
+        	& prioritizeUp(Next(t)).
         
         // Start descending
         ! t[Time]: descending(t) <- ~ascending(t)
@@ -146,8 +141,7 @@ Theory T_student:V_student {
          ! t[Time]: descending(Next(t)) <- (descending(t))
         	& (? f[Floor]: UnansweredRequest(Next(t),f) & f < ElPosition(t)).
         // Several new unanswered, below wins
-        ! t[Time]: descending(Next(t)) <- 
-        	(~? f[Floor]: UnansweredRequest(t,f))
+        ! t[Time]: descending(Next(t)) <- (~? f[Floor]: UnansweredRequest(t,f))
         	& prioritizeDown(Next(t)).
     }
     
@@ -166,12 +160,11 @@ Theory T_student:V_student {
         
         // Check whether the given floor below is the closest
         ! t[Time] f[Floor]: isClosestBelow(t, f) <- ~? g[Floor]: UnansweredRequest(t,g) & f<g
-        		& abs(ElPosition(t)-f) >= abs(ElPosition(t)-g).
+        	& abs(ElPosition(t)-f) >= abs(ElPosition(t)-g).
     } 
 }
 
 // INVARIANTS
-
 // If elevator moves the doors are closed!
 theory move_inv : V_student {
     ! t[Time]: ElPosition(t) ~= ElPosition(Next(t)) 
@@ -187,12 +180,11 @@ theory door_inv : V_student {
 // MAIN PROCEDURE
 // If you have to change the main procedure for debugging purposes, be careful and restore it back once you finish debugging.
 procedure main() {
-    /*
     local CompleteTheory = merge(T_fixed, T_student) 
     
     // Change the structure name to try other structures (check the included file "structures.idp" for available provided structures, and feel free to add additional structures)     
     
-    model = onemodel(CompleteTheory, S5)
+    model = onemodel(CompleteTheory, S)
     
     // Printing model 
     print(model)
@@ -200,9 +192,9 @@ procedure main() {
     // Visualization
     initVisualization()
     visualizeElevator(model)
-    */
-    proveInvariants()
     
+    // Prove invariants
+    proveInvariants(t)
 }
 
 procedure proveInvariants(){

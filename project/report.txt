@@ -1,5 +1,22 @@
+CAUSATIONS:
 
-For each new predicate and functino: explain inteded interpretation
- - pred is true if and only if ...
- - func is .....
-Estimation of time: ...h
+C_floor(Time, Floor)          is true iff at time t[Time] f[Floor] is caused, which means the elevator is at floor f
+Cn_floor(Time, Floor)         is true iff at time t[Time] f[Floor] is uncaused, which means the elevator is at a floor g ~= f
+
+C_door(Time)                  is true iff at time t[Time], opening of the elevator doors is caused, which means the doors are open at Next(t)
+Cn_door(Time)                 is true iff at time t[Time], closing of the elevator doors is caused,  which means the doors are closed at Next(t)
+
+C_request(Time, Floor)        is true iff at time t[Time], a request at f[Floor] is caused, which results in UnansweredRequest(Next(t), f)
+Cn_request(Time, Floor)       is true iff at time t[Time], the request at f[Floor] is uncaused, which results in ~UnansweredRequest(Next(t), f)
+
+ascending(Time)               is true iff at time t[Time], the elevator will is moving up or answering requests upwards
+descending(Time)              is true iff at time t[Time], the elevator will is moving down or answering requests downwards
+
+prioritizeUp(Time)            is true iff at time t[Time], there are multiple requests and there exist a request above which is closest or equally close as a request below
+prioritizeDown(Time)          is true iff at time t[Time], there are multiple requests and there exist a request below which is closest
+
+isClosestBelow(Time, Floor)   is true iff at time t[Time], floor f[Floor] is the closest to the elevators current position
+
+
+TIME SPENT:           25h
+MAJOR REVISION:       no
