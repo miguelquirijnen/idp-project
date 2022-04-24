@@ -1,4 +1,4 @@
-CAUSATIONS:
+CAUSATIONS FLUENTS:
 
 C_floor(Time, Floor)          is true iff at time t[Time] f[Floor] is caused, which means the elevator is at floor f
 Cn_floor(Time, Floor)         is true iff at time t[Time] f[Floor] is uncaused, which means the elevator is at a floor g ~= f

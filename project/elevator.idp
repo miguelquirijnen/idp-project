@@ -31,22 +31,28 @@ LTCvocabulary V_student {
     MinFloor: Floor
     MaxFloor: Floor
     
+    // FLUENTS
+    // Floor causes
     C_floor(Time, Floor)
     Cn_floor(Time, Floor)
-    
+
+    // Door causes
     C_door(Time)
     Cn_door(Time)
     
+    // Request causes
     C_request(Time, Floor)
     Cn_request(Time, Floor)
     
-    // Causes-predicates
+    // Ascending and descending of the elevator
     ascending(Time)
     descending(Time)
     
+    // Prioritizing request above or below
     prioritizeUp(Time)
     prioritizeDown(Time)
     
+    // Whether the given floor below is the closest
     isClosestBelow(Time, Floor)
 }
 
